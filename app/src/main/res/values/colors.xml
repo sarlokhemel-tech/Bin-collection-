@@ -1,0 +1,7 @@
+<resources>
+    <color name="primary">#1E3A8A</color>
+    <color name="primaryDark">#0F2557</color>
+    <color name="accent">#3B82F6</color>
+    <color name="pageBg">#FFFFFF</color>
+    <color name="selected_border">#3B82F6</color>
+</resources>

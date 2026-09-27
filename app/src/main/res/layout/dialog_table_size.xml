@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="কয়টি সারি ও কলাম চান?"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:textColor="#0F172A"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/inputRows"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="সারি (Rows)"
+            android:inputType="number"
+            android:text="3"/>
+
+        <View
+            android:layout_width="12dp"
+            android:layout_height="1dp"/>
+
+        <EditText
+            android:id="@+id/inputCols"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="কলাম (Columns)"
+            android:inputType="number"
+            android:text="3"/>
+    </LinearLayout>
+</LinearLayout>
