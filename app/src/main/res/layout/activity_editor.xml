@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F1F5F9">
+
+    <!-- Top bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/primary"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="6dp"
+        android:paddingEnd="10dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_toolbar_btn"
+            android:src="@drawable/ic_back"
+            app:tint="#FFFFFF"/>
+
+        <EditText
+            android:id="@+id/titleInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:background="@null"
+            android:hint="শিরোনাম লিখুন"
+            android:textColorHint="#B9C4E0"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:maxLines="1"/>
+
+        <ImageButton
+            android:id="@+id/btnSave"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_toolbar_btn"
+            android:src="@drawable/ic_save"
+            app:tint="#FFFFFF"/>
+
+        <ImageButton
+            android:id="@+id/btnDeleteNotebook"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/bg_toolbar_btn"
+            android:src="@drawable/ic_delete"
+            android:contentDescription="পুরো নোটবুক ডিলিট করুন"
+            app:tint="#FFFFFF"/>
+    </LinearLayout>
+
+    <!-- Date row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#DBEAFE"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="তারিখ:"
+            android:textColor="#1E3A8A"
+            android:textSize="13sp"/>
+
+        <TextView
+            android:id="@+id/dateText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:textColor="#1E3A8A"
+            android:textStyle="bold"
+            android:textSize="14sp"
+            tools:text="২৭-০৯-২০২৬"/>
+
+        <ImageButton
+            android:id="@+id/btnEditDate"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:background="@drawable/bg_toolbar_btn"
+            android:src="@drawable/ic_edit_date"
+            android:contentDescription="তারিখ পরিবর্তন করুন"
+            app:tint="#1E3A8A"/>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/draftStatusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FEF3C7"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:text="খসড়া হিসেবে অটোমেটিক সংরক্ষণ হচ্ছে"
+        android:textColor="#92400E"
+        android:textSize="11sp"
+        android:visibility="gone"/>
+
+    <!-- Toolbar -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFFFFF"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/toolbar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
+            <!-- buttons added programmatically for consistency -->
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#E2E8F0"/>
+
+    <ScrollView
+        android:id="@+id/pageScroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="8dp">
+
+        <FrameLayout
+            android:id="@+id/canvas"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="1600dp"
+            android:background="@color/pageBg"
+            android:elevation="1dp">
+
+            <!-- Free-write layer: type here directly, just like a plain notebook page,
+                 with no box needed. Boxes/columns/images added from the toolbar float
+                 on top of this layer and can be moved and resized independently. -->
+            <EditText
+                android:id="@+id/freeWriteText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="1600dp"
+                android:background="@null"
+                android:gravity="top|start"
+                android:hint="এখানে সরাসরি লিখুন — সাধারণ নোটবুক এর মতো, কোনো বক্স তৈরি না করেই..."
+                android:textColorHint="#94A3B8"
+                android:textColor="#0F172A"
+                android:textSize="16sp"
+                android:padding="14dp"
+                android:inputType="textMultiLine|textCapSentences"/>
+        </FrameLayout>
+    </ScrollView>
+
+</LinearLayout>
