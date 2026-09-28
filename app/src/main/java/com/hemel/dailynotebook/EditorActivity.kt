@@ -26,6 +26,7 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,6 +60,7 @@ class EditorActivity : AppCompatActivity() {
         private const val MIN_ELEMENT_W = 70
         private const val MIN_ELEMENT_H = 60
         private const val AUTOSAVE_INTERVAL_MS = 6000L
+        private const val MAX_PAGE_COUNT = 30
 
         private val TEXT_COLOR_PALETTE = listOf(
             "#0F172A", "#DC2626", "#EA580C", "#CA8A04", "#16A34A",
@@ -75,7 +77,7 @@ class EditorActivity : AppCompatActivity() {
     private var notebookId: Long = -1L
 
     private lateinit var canvas: FrameLayout
-    private lateinit var pageHScroll: HorizontalScrollView
+    private lateinit var pageScroll: ScrollView
     private lateinit var titleInput: EditText
     private lateinit var dateText: TextView
     private lateinit var btnEditDate: ImageButton
@@ -85,6 +87,11 @@ class EditorActivity : AppCompatActivity() {
 
     private var selectedView: View? = null
     private var addOffsetStep = 0
+    // Height (px) of one screen's worth of writable page, measured at runtime from
+    // pageScroll's own laid-out height. pageCount tracks how many of those the user
+    // has added ("নতুন পাতা"); the page's actual minimum height is always the product.
+    private var pageHeightPx: Int = 0
+    private var pageCount: Int = 1
     private var currentDateFormatted: String = ""
     private val dateFmt = SimpleDateFormat("dd-MM-yyyy", Locale.US)
 
@@ -96,13 +103,6 @@ class EditorActivity : AppCompatActivity() {
     // tapped — captured up front because opening the image picker / table-size dialog
     // steals focus from freeWriteText before the element actually gets created.
     private var pendingInsertAnchor: Int? = null
-
-    // Page width: normally exactly one phone screen wide, so a table/box can shrink to
-    // fit but never spill outside it. "Extra page" doubles this and turns on horizontal
-    // scrolling so the wider area can be reached by dragging left/right.
-    private val screenWidthPx: Int by lazy { resources.displayMetrics.widthPixels }
-    private var extraPageEnabled: Boolean = false
-    private fun currentPageWidthPx(): Int = if (extraPageEnabled) screenWidthPx * 2 else screenWidthPx
     // set right before the whole notebook is deleted, so the autosave loop
     // (onPause etc.) can't silently re-create it afterwards.
     private var isDeleted: Boolean = false
@@ -120,7 +120,7 @@ class EditorActivity : AppCompatActivity() {
         db = AppDatabase.getInstance(this)
 
         canvas = findViewById(R.id.canvas)
-        pageHScroll = findViewById(R.id.pageHScroll)
+        pageScroll = findViewById(R.id.pageScroll)
         titleInput = findViewById(R.id.titleInput)
         dateText = findViewById(R.id.dateText)
         btnEditDate = findViewById(R.id.btnEditDate)
@@ -130,7 +130,11 @@ class EditorActivity : AppCompatActivity() {
 
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finalizeAndSave(andFinish = true) }
         findViewById<ImageButton>(R.id.btnSave).setOnClickListener { finalizeAndSave(andFinish = false) }
+        findViewById<ImageButton>(R.id.btnCopyAll).setOnClickListener { copyAllText() }
         findViewById<ImageButton>(R.id.btnDeleteNotebook).setOnClickListener { confirmDeleteNotebook() }
+
+        // Page starts sized to exactly one screen; measure that size once layout settles.
+        pageScroll.post { applyPageHeight() }
 
         canvas.setOnClickListener { clearSelection() }
         freeWriteText.setOnFocusChangeListener { _, hasFocus -> if (hasFocus) clearSelection() }
@@ -141,7 +145,6 @@ class EditorActivity : AppCompatActivity() {
         btnEditDate.setOnClickListener { showDatePicker() }
 
         buildToolbar()
-        applyPageWidth()
 
         notebookId = intent.getLongExtra(EXTRA_NOTEBOOK_ID, -1L)
         if (notebookId > 0) loadNotebook(notebookId) else updateDraftStatusVisibility()
@@ -173,11 +176,11 @@ class EditorActivity : AppCompatActivity() {
         addToolbarButton(R.drawable.ic_text, "লেখা যোগ করুন (বক্স)") { capturePendingAnchor(); addTextElement() }
         addToolbarButton(R.drawable.ic_image, "ছবি যোগ করুন") { capturePendingAnchor(); pickImage.launch("image/*") }
         addToolbarButton(R.drawable.ic_table, "টেবিল/কলাম যোগ করুন") { capturePendingAnchor(); showTableDialog() }
+        addToolbarButton(R.drawable.ic_add, "নতুন পাতা যোগ করুন", tint = "#0891B2") { addNewPage() }
         addToolbarButton(R.drawable.ic_font_up, "ফন্ট বড়") { changeFontSize(2f) }
         addToolbarButton(R.drawable.ic_font_down, "ফন্ট ছোট") { changeFontSize(-2f) }
         addToolbarButton(R.drawable.ic_color_dot, "লেখার রং", tint = "#DC2626") { showColorPalette(isHighlight = false) }
         addToolbarButton(R.drawable.ic_color_dot, "হাইলাইট করুন", tint = "#CA8A04") { showColorPalette(isHighlight = true) }
-        addToolbarButton(R.drawable.ic_extra_page, "এক্সট্রা পেজ (চওড়া পাতা) চালু/বন্ধ") { toggleExtraPage() }
         addToolbarButton(R.drawable.ic_delete, "মুছে ফেলুন") { deleteSelected() }
         addToolbarButton(R.drawable.ic_copy, "সব লেখা কপি করুন") { copyAllText() }
         addToolbarButton(R.drawable.ic_pdf, "PDF এক্সপোর্ট") { exportThisNotebook() }
@@ -214,24 +217,29 @@ class EditorActivity : AppCompatActivity() {
         }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).show()
     }
 
-    // ---------- Page width (fits on one screen, unless "extra page" is on) ----------
+    // ---------- Page size (one screen by default, grows only on request) ----------
 
-    private fun applyPageWidth() {
-        val lp = canvas.layoutParams
-        lp.width = currentPageWidthPx()
-        canvas.layoutParams = lp
+    // Applies the current pageCount as a minimum height on both the canvas and the
+    // free-write layer, in multiples of one screen height. Safe to call before
+    // pageHeightPx has been measured (it just does nothing yet, and the post{} in
+    // onCreate / loadNotebook will call it again once ready).
+    private fun applyPageHeight() {
+        if (pageHeightPx <= 0) pageHeightPx = pageScroll.height
+        if (pageHeightPx <= 0) return
+        val total = pageHeightPx * pageCount
+        canvas.minimumHeight = total
+        freeWriteText.minHeight = total
     }
 
-    private fun toggleExtraPage() {
-        extraPageEnabled = !extraPageEnabled
-        applyPageWidth()
-        pageHScroll.post { pageHScroll.scrollTo(0, 0) }
-        Toast.makeText(
-            this,
-            if (extraPageEnabled) "এক্সট্রা পেজ চালু হয়েছে — পাতাটি টেনে ডানে-বামে দেখা যাবে"
-            else "এক্সট্রা পেজ বন্ধ হয়েছে — পাতা আবার এক স্ক্রিনের সমান",
-            Toast.LENGTH_SHORT
-        ).show()
+    private fun addNewPage() {
+        if (pageCount >= MAX_PAGE_COUNT) {
+            Toast.makeText(this, "আর নতুন পাতা যোগ করা যাবে না", Toast.LENGTH_SHORT).show()
+            return
+        }
+        pageCount++
+        applyPageHeight()
+        Toast.makeText(this, "নতুন পাতা যোগ হয়েছে (মোট $pageCount পাতা)", Toast.LENGTH_SHORT).show()
+        pageScroll.post { pageScroll.fullScroll(View.FOCUS_DOWN) }
     }
 
     // ---------- Element creation ----------
@@ -286,12 +294,10 @@ class EditorActivity : AppCompatActivity() {
     private fun addTextElement() {
         val h = dp(DEFAULT_TEXT_H)
         val y = reserveSpaceInFreeWrite(h)
-        val x = dp(24) + nextOffset()
-        val w = dp(DEFAULT_TEXT_W).coerceAtMost((currentPageWidthPx() - x).coerceAtLeast(dp(MIN_ELEMENT_W)))
         val e = PageElement(
             type = TYPE_TEXT,
-            x = x, y = y,
-            w = w, h = h,
+            x = dp(24) + nextOffset(), y = y,
+            w = dp(DEFAULT_TEXT_W), h = h,
             fontSize = 16f, text = ""
         )
         createElementView(e)
@@ -300,12 +306,10 @@ class EditorActivity : AppCompatActivity() {
     private fun addImageElement(fileName: String) {
         val h = dp(DEFAULT_IMAGE_SIZE)
         val y = reserveSpaceInFreeWrite(h)
-        val x = dp(24) + nextOffset()
-        val w = dp(DEFAULT_IMAGE_SIZE).coerceAtMost((currentPageWidthPx() - x).coerceAtLeast(dp(MIN_ELEMENT_W)))
         val e = PageElement(
             type = TYPE_IMAGE,
-            x = x, y = y,
-            w = w, h = h,
+            x = dp(24) + nextOffset(), y = y,
+            w = dp(DEFAULT_IMAGE_SIZE), h = h,
             image = fileName
         )
         createElementView(e)
@@ -327,19 +331,14 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun addTableElement(rows: Int, cols: Int) {
-        val desiredCellW = dp(90)
+        val cellW = dp(90)
         val cellH = dp(48)
-        val x = dp(24)
-        // shrink the columns if needed so the whole table always fits on the current
-        // page width — it should never spill outside the page, even with many columns.
-        val availableWidth = (currentPageWidthPx() - x - dp(16)).coerceAtLeast(dp(MIN_ELEMENT_W))
-        val cellW = (availableWidth / cols).coerceIn(dp(28), desiredCellW)
         val h = cellH * rows
         val y = reserveSpaceInFreeWrite(h)
         val cells = MutableList(rows) { MutableList(cols) { "" } }
         val e = PageElement(
             type = TYPE_TABLE,
-            x = x, y = y,
+            x = dp(24) + nextOffset(), y = y,
             w = cellW * cols, h = h,
             rows = rows, cols = cols, cells = cells
         )
@@ -524,8 +523,7 @@ class EditorActivity : AppCompatActivity() {
                     val dx = (event.rawX - startRawX).toInt()
                     val dy = (event.rawY - startRawY).toInt()
                     val lp = container.layoutParams as FrameLayout.LayoutParams
-                    val maxLeft = (currentPageWidthPx() - lp.width).coerceAtLeast(0)
-                    lp.leftMargin = (startLeft + dx).coerceIn(0, maxLeft)
+                    lp.leftMargin = (startLeft + dx).coerceAtLeast(0)
                     lp.topMargin = (startTop + dy).coerceAtLeast(0)
                     container.layoutParams = lp
                     element.x = lp.leftMargin
@@ -562,9 +560,7 @@ class EditorActivity : AppCompatActivity() {
                     val dx = (event.rawX - startRawX).toInt()
                     val dy = (event.rawY - startRawY).toInt()
                     val lp = container.layoutParams as FrameLayout.LayoutParams
-                    // never let a box/column/image get resized past the right edge of the page
-                    val maxWidth = (currentPageWidthPx() - lp.leftMargin).coerceAtLeast(dp(MIN_ELEMENT_W))
-                    lp.width = (startW + dx).coerceIn(dp(MIN_ELEMENT_W), maxWidth)
+                    lp.width = (startW + dx).coerceAtLeast(dp(MIN_ELEMENT_W))
                     lp.height = (startH + dy).coerceAtLeast(dp(MIN_ELEMENT_H))
                     container.layoutParams = lp
                     element.w = lp.width
@@ -863,7 +859,7 @@ class EditorActivity : AppCompatActivity() {
             searchText = ElementsJson.buildSearchText(title, currentDateFormatted, freeText, elements),
             previewText = ElementsJson.buildPreviewText(freeText, elements),
             isDraft = isDraftFlag,
-            extraPage = extraPageEnabled,
+            pageCount = pageCount,
             updatedAt = System.currentTimeMillis()
         )
         lifecycleScope.launch {
@@ -888,11 +884,11 @@ class EditorActivity : AppCompatActivity() {
             dateText.text = currentDateFormatted
             freeWriteText.setText(nb.freeText)
             applySpansFromJson(freeWriteText, nb.freeTextSpans)
-            extraPageEnabled = nb.extraPage
-            applyPageWidth()
             val elements = ElementsJson.deserialize(nb.elementsJson)
             for (e in elements) createElementView(e)
             isDraftFlag = nb.isDraft
+            pageCount = nb.pageCount.coerceIn(1, MAX_PAGE_COUNT)
+            applyPageHeight()
             updateDraftStatusVisibility()
             clearSelection()
         }
@@ -907,7 +903,8 @@ class EditorActivity : AppCompatActivity() {
             dateText = currentDateFormatted,
             elementsJson = ElementsJson.serialize(elements),
             freeText = currentFreeText(),
-            freeTextSpans = currentFreeTextSpans()
+            freeTextSpans = currentFreeTextSpans(),
+            pageCount = pageCount
         )
         finalizeAndSave(andFinish = false)
         PdfExporter.exportAndShare(this, listOf(nb))

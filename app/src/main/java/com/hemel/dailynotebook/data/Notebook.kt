@@ -18,7 +18,8 @@ data class Notebook(
     val previewText: String = "",
     // true = only auto-saved (temporary/draft), not yet explicitly saved by the user.
     val isDraft: Boolean = false,
-    // true = the page is widened to two phone-screens (reachable by scrolling sideways).
-    val extraPage: Boolean = false,
+    // How many screen-heights tall the writable page is. Starts at 1 (a single page,
+    // matching what fits on screen); only grows when the user explicitly taps "add page".
+    val pageCount: Int = 1,
     val updatedAt: Long = System.currentTimeMillis()
 )

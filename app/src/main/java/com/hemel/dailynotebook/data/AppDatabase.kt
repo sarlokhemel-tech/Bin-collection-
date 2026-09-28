@@ -23,11 +23,10 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // v2 -> v3: remembers whether the "extra page" (double-width, horizontally
-        // scrollable) mode was turned on for this notebook.
+        // v2 -> v3: added pageCount, how many screen-heights tall the page is (starts at 1).
         private val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE notebooks ADD COLUMN extraPage INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE notebooks ADD COLUMN pageCount INTEGER NOT NULL DEFAULT 1")
             }
         }
 
