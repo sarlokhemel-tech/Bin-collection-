@@ -158,7 +158,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun key(): String = if (provider == 0) geminiKey else groqKey
     fun model(): String = if (provider == 0) geminiModel else groqModel
 
-    fun setProvider(p: Int) {
+    fun selectProvider(p: Int) {
         provider = p
         remoteModels = emptyList()
         prefs.edit().putInt("provider", p).apply()

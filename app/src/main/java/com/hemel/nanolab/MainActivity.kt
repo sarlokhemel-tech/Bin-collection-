@@ -377,8 +377,8 @@ fun ChatTab(vm: AppViewModel) {
 
     Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            FilterChip(selected = vm.provider == 0, onClick = { vm.setProvider(0) }, label = { Text("Gemini") })
-            FilterChip(selected = vm.provider == 1, onClick = { vm.setProvider(1) }, label = { Text("Groq") })
+            FilterChip(selected = vm.provider == 0, onClick = { vm.selectProvider(0) }, label = { Text("Gemini") })
+            FilterChip(selected = vm.provider == 1, onClick = { vm.selectProvider(1) }, label = { Text("Groq") })
             Spacer(Modifier.weight(1f))
             TextButton(onClick = { showSettings = !showSettings }) { Text("⚙") }
             TextButton(onClick = { vm.newChat() }) { Text("নতুন চ্যাট") }
