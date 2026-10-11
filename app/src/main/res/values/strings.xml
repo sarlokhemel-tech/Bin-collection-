@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">NanoLab</string>
+    <string name="a11y_desc">স্ক্রিনের Accessibility Tree পড়ে সেভ করার জন্য। কোনো ডেটা ইন্টারনেটে পাঠানো হয় না।</string>
+</resources>

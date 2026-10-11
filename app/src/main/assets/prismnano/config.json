@@ -1,0 +1,29 @@
+{
+  "model_name": "PrismNano",
+  "max_len": 256,
+  "chunk_overlap": 32,
+  "emb_dim": 48,
+  "channels": 64,
+  "kernel_size": 5,
+  "dilations": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    1
+  ],
+  "dropout": 0.1,
+  "train_samples": 40000,
+  "val_samples": 3000,
+  "batch_size": 128,
+  "epochs": 12,
+  "lr": 0.002,
+  "labels": [
+    "SPEECH",
+    "INTENT",
+    "NODE",
+    "LINK",
+    "SKIP"
+  ]
+}

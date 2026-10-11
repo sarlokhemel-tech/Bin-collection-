@@ -1,0 +1,3 @@
+<resources>
+    <style name="Theme.NanoLab" parent="@android:style/Theme.Material.Light.NoActionBar" />
+</resources>
