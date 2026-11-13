@@ -6,6 +6,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_netif_net_stack.h"
 #include "lwip/lwip_napt.h"
 #include "lwip/etharp.h"
 #include "lwip/tcpip.h"
