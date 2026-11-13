@@ -344,9 +344,9 @@ int wifi_mgr_ap_clients(ap_client_t *out, int max)
     wifi_sta_list_t wl;
     memset(&wl, 0, sizeof wl);
     if (esp_wifi_ap_get_sta_list(&wl) != ESP_OK) return 0;
-    esp_netif_sta_list_t nl;
+    wifi_sta_mac_ip_list_t nl;
     memset(&nl, 0, sizeof nl);
-    esp_netif_get_sta_list(&wl, &nl);
+    esp_wifi_ap_get_sta_list_with_ip(&wl, &nl);
     int c = 0;
     for (int i = 0; i < wl.num && c < max; i++) {
         memcpy(out[c].mac, wl.sta[i].mac, 6);
