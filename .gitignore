@@ -1,5 +1,3 @@
-.gradle/
 build/
-local.properties
-.idea/
-*.iml
+sdkconfig
+sdkconfig.old

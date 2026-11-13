@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="bn"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ESP32 Repeater</title>
+<style>
+:root{--bg:#0f172a;--c:#1e293b;--t:#e2e8f0;--a:#38bdf8;--r:#f87171}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--t)}
+header{padding:12px 16px;background:var(--c);font-weight:700}
+nav{display:flex;overflow-x:auto;gap:4px;padding:8px;background:var(--c);position:sticky;top:0}
+nav button{flex:none;background:#334155;color:var(--t);border:0;padding:8px 12px;border-radius:8px}
+nav button.on{background:var(--a);color:#000}
+section{display:none;padding:12px}section.on{display:block}
+.card{background:var(--c);border-radius:12px;padding:12px;margin-bottom:12px}
+h3{margin:0 0 8px;font-size:16px}
+input,select{width:100%;padding:10px;margin:4px 0 10px;border-radius:8px;border:1px solid #475569;background:#0b1220;color:var(--t);font-size:15px}
+input[type=checkbox]{width:auto;margin-right:6px}
+label{font-size:13px;opacity:.8}
+button.b{background:var(--a);color:#000;border:0;padding:9px 12px;border-radius:8px;font-weight:700;margin:2px}
+button.d{background:var(--r)}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #334155}
+.s{font-size:12px;opacity:.75;word-break:break-all}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#000;color:#fff;padding:10px 16px;border-radius:10px;display:none;max-width:90%;text-align:center}
+</style></head><body>
+<header>📡 ESP32 Repeater প্যানেল</header>
+<nav>
+<button data-t="home" onclick="tab('home')" class="on">স্ট্যাটাস</button>
+<button data-t="rt" onclick="tab('rt')">রাউটার</button>
+<button data-t="hot" onclick="tab('hot')">হটস্পট</button>
+<button data-t="lan" onclick="tab('lan')">রাউটারের ডিভাইস</button>
+<button data-t="net" onclick="tab('net')">নেটওয়ার্ক/IP</button>
+<button data-t="mac" onclick="tab('mac')">MAC</button>
+<button data-t="sys" onclick="tab('sys')">সিস্টেম</button>
+</nav>
+
+<section id="t_home" class="on">
+<div class="card" id="st">লোড হচ্ছে...</div>
+<button class="b" onclick="loadStatus()">রিফ্রেশ</button>
+</section>
+
+<section id="t_rt">
+<div class="card"><h3>আশেপাশের ওয়াইফাই</h3>
+<button class="b" onclick="scan()">🔍 স্ক্যান করুন</button>
+<div class="s">স্ক্যানের সময় হটস্পট কয়েক সেকেন্ড স্লো হতে পারে। নেটওয়ার্কে ট্যাপ করলে নাম বসে যাবে, শুধু পাসওয়ার্ড দিন।</div>
+<div id="sl"></div></div>
+<div class="card"><h3>রাউটারে কানেক্ট</h3>
+<label>রাউটারের নাম (SSID)</label><input id="r_ssid">
+<label>পাসওয়ার্ড</label><input id="r_pass" type="text" placeholder="খোলা নেটওয়ার্কে খালি রাখুন">
+<button class="b" onclick="saveSta()">কানেক্ট</button>
+<button class="b d" onclick="clearSta()">ডিসকানেক্ট/মুছুন</button></div>
+</section>
+
+<section id="t_hot">
+<div class="card"><h3>হটস্পট সেটিং</h3>
+<label>হটস্পটের নাম (ফোনে যা দেখাবে)</label><input id="a_ssid">
+<label>পাসওয়ার্ড (৮+ অক্ষর, খালি = ওপেন)</label><input id="a_pass">
+<label>সর্বোচ্চ ডিভাইস (১-১০)</label><input id="a_max" type="number" min="1" max="10">
+<label><input id="a_hid" type="checkbox">হটস্পটের নাম লুকানো</label><br><br>
+<button class="b" onclick="saveAp()">সেভ</button></div>
+<div class="card"><h3>হটস্পটে কারা আছে</h3><div id="cl">...</div>
+<button class="b" onclick="loadClients()">রিফ্রেশ</button></div>
+<div class="card"><h3>ব্লক করা ডিভাইস</h3><div id="bl"></div></div>
+</section>
+
+<section id="t_lan">
+<div class="card"><h3>রাউটারে কানেক্টেড ডিভাইস</h3>
+<div class="s">ARP স্ক্যান করে IP ও MAC বের করে। ডিভাইসের নাম রাউটার দেয় না, তাই নিজে নাম দিয়ে রাখতে পারবেন।</div>
+<button class="b" onclick="lanScan()">🔍 স্ক্যান শুরু</button>
+<div id="ln"></div></div>
+</section>
+
+<section id="t_net">
+<div class="card"><h3>রাউটার সাইড IP</h3>
+<label><input id="n_st" type="checkbox">স্ট্যাটিক IP ব্যবহার করুন (বন্ধ = রাউটার থেকে অটো)</label>
+<label>ESP32-এর IP</label><input id="n_ip" placeholder="192.168.0.50">
+<label>সাবনেট মাস্ক</label><input id="n_mask" placeholder="255.255.255.0">
+<label>গেটওয়ে (রাউটারের IP)</label><input id="n_gw" placeholder="192.168.0.1">
+<div class="s">DNS সিস্টেম ট্যাবের "কাস্টম DNS" থেকে আসে।</div></div>
+<div class="card"><h3>হটস্পট IP ও DHCP</h3>
+<label>হটস্পটের IP (প্যানেলের ঠিকানা)</label><input id="n_aip">
+<label>মাস্ক</label><input id="n_amask">
+<label>DHCP শুরু (শেষ অংশ, যেমন 2)</label><input id="n_ds" type="number" min="1" max="254">
+<label>DHCP শেষ (যেমন 50)</label><input id="n_de" type="number" min="1" max="254">
+<label>লিজ সময় (মিনিট)</label><input id="n_lease" type="number" min="5" max="1440">
+<div class="s">রাউটারের IP রেঞ্জ (যেমন 192.168.4.x) আর হটস্পটের রেঞ্জ এক হলে ইন্টারনেট চলবে না — হটস্পট IP আলাদা রাখুন, যেমন 192.168.50.1।</div>
+<button class="b" onclick="saveNet()">সেভ + রিস্টার্ট</button></div>
+</section>
+
+<section id="t_mac">
+<div class="card"><h3>MAC অ্যাড্রেস পরিবর্তন</h3>
+<div class="s">খালি রাখলে ডিফল্ট MAC থাকবে। সেভ করলে ডিভাইস রিস্টার্ট হবে। ফরম্যাট: aa:bb:cc:dd:ee:ff (প্রথম বাইট জোড় হতে হবে, যেমন 02, 0a, 12)</div>
+<label>রাউটারে কানেক্টের MAC (STA)</label><input id="m_sta">
+<label>হটস্পটের MAC (AP)</label><input id="m_ap">
+<button class="b" onclick="rndMac()">🎲 র‍্যান্ডম বানান</button>
+<button class="b" onclick="saveMac()">সেভ + রিস্টার্ট</button></div>
+</section>
+
+<section id="t_sys">
+<div class="card"><h3>সাধারণ সেটিং</h3>
+<label>ডিভাইসের নাম (রাউটার যা দেখবে, ইংরেজি)</label><input id="s_host">
+<label>কাস্টম DNS (খালি = রাউটারেরটা)</label><input id="s_dns" placeholder="8.8.8.8">
+<label>ট্রান্সমিট পাওয়ার (২-২০ dBm)</label><input id="s_tx" type="number" min="2" max="20">
+<label>LED পিন (-১ = বন্ধ, সাধারণত ২)</label><input id="s_led" type="number" min="-1" max="33">
+<label><input id="s_ledon" type="checkbox">LED সিগন্যাল চালু</label><br><br>
+<button class="b" onclick="saveSys()">সেভ</button></div>
+<div class="card"><h3>অ্যাডমিন লগইন</h3>
+<label>ইউজারনেম</label><input id="u_user"><label>পাসওয়ার্ড</label><input id="u_pass">
+<button class="b" onclick="saveAdmin()">বদলান</button></div>
+<div class="card"><h3>ফার্মওয়্যার আপডেট (OTA)</h3>
+<div class="s">GitHub Action থেকে পাওয়া esp32_repeater.bin ফাইল বাছাই করুন</div>
+<input id="ota" type="file" accept=".bin"><button class="b" onclick="ota()">আপলোড</button></div>
+<div class="card"><button class="b" onclick="api('/api/reboot',{})">রিস্টার্ট</button>
+<button class="b d" onclick="if(confirm('সব সেটিং মুছে যাবে। নিশ্চিত?'))api('/api/reset',{})">ফ্যাক্টরি রিসেট</button>
+<div class="s">হার্ডওয়্যার রিসেট: চালু অবস্থায় BOOT বাটন ৫ সেকেন্ড চেপে ধরুন।</div></div>
+</section>
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',3500)}
+async function api(p,b){
+  try{
+    const o=b===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)};
+    const r=await fetch(p,o);const j=await r.json();
+    if(j.msg)toast(j.msg);return j;
+  }catch(e){toast('সংযোগ বিচ্ছিন্ন (ডিভাইস রিস্টার্ট হচ্ছে হতে পারে)');return null}
+}
+function tab(n){
+  document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id==='t_'+n));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===n));
+  if(n==='home')loadStatus();if(n==='hot')loadClients();if(n==='lan')poll(true);
+}
+let first=true;
+async function loadStatus(){
+  const s=await api('/api/status');if(!s)return;
+  const rows=[
+    ['রাউটার',s.sta_up?'✅ '+esc(s.sta_ssid)+' ('+s.rssi+' dBm)':'❌ সংযুক্ত নয়'],
+    ['ইন্টারনেট',s.sta_up?(s.inet?'✅ আছে':'⏳ যাচাই চলছে / নেই'):'—'],
+    ['রাউটার থেকে পাওয়া IP',esc(s.sta_ip)],['গেটওয়ে',esc(s.gw)],
+    ['হটস্পট',esc(s.ap_ssid)+' → '+esc(s.ap_ip)],
+    ['STA MAC',esc(s.mac_sta)],['AP MAC',esc(s.mac_ap)],
+    ['চলছে',s.uptime+' সেকেন্ড'],['ফ্রি RAM',s.heap+' বাইট'],['ভার্সন',esc(s.ver)]];
+  if(s.conflict)rows.unshift(['⚠️ সতর্কতা','রাউটার ও হটস্পটের IP রেঞ্জ এক! "নেটওয়ার্ক/IP" ট্যাবে হটস্পট IP বদলান']);
+  $('st').innerHTML=rows.map(r=>'<div class="row"><span>'+r[0]+'</span><span class="s">'+r[1]+'</span></div>').join('');
+  if(first){first=false;
+    $('r_ssid').value=s.cfg_sta_ssid;$('a_ssid').value=s.ap_ssid;$('a_pass').value=s.ap_pass;
+    $('a_max').value=s.ap_max;$('a_hid').checked=s.ap_hidden;
+    $('m_sta').value=s.cfg_mac_sta;$('m_ap').value=s.cfg_mac_ap;
+    $('s_host').value=s.hostname;$('s_dns').value=s.dns;$('s_tx').value=s.tx;
+    $('s_led').value=s.led_pin;$('s_ledon').checked=s.led_en;$('u_user').value=s.admin_user;
+    $('n_st').checked=s.sta_static;$('n_ip').value=s.cfg_sta_ip;$('n_mask').value=s.cfg_sta_mask;$('n_gw').value=s.cfg_sta_gw;
+    $('n_aip').value=s.cfg_ap_ip;$('n_amask').value=s.cfg_ap_mask;$('n_ds').value=s.dhcp_start;$('n_de').value=s.dhcp_end;$('n_lease').value=s.lease;}
+}
+let SC=[];
+async function scan(){
+  $('sl').innerHTML='<div class="s">স্ক্যান চলছে...</div>';
+  const j=await api('/api/scan');
+  if(!j||!j.list){$('sl').innerHTML='';return}
+  SC=j.list;
+  $('sl').innerHTML=SC.map((n,i)=>'<div class="row" onclick="pick('+i+')"><span>'+(n.lock?'🔒':'📶')+' '+esc(n.ssid)+'</span><span class="s">'+n.rssi+' dBm · ch'+n.ch+'</span></div>').join('');
+}
+function pick(i){$('r_ssid').value=SC[i].ssid;$('r_pass').value='';$('r_pass').focus();window.scrollTo(0,document.body.scrollHeight)}
+function saveSta(){api('/api/sta',{ssid:$('r_ssid').value,pass:$('r_pass').value})}
+function clearSta(){$('r_ssid').value='';$('r_pass').value='';api('/api/sta',{ssid:'',pass:''})}
+function saveAp(){api('/api/ap',{ssid:$('a_ssid').value,pass:$('a_pass').value,max:+$('a_max').value||8,hidden:$('a_hid').checked})}
+async function loadClients(){
+  const j=await api('/api/clients');if(!j)return;
+  $('cl').innerHTML=j.ap.length?j.ap.map(c=>'<div class="row"><div>'+esc(c.name||'নামহীন')+'<div class="s">'+c.mac+' · '+c.ip+' · '+c.rssi+' dBm</div></div><div>'
+   +'<button class="b" onclick="nick(\''+c.mac+'\',\''+esc(c.name).replace(/'/g,'')+'\')">নাম</button>'
+   +'<button class="b" onclick="act(\'kick\',\''+c.mac+'\')">কিক</button>'
+   +'<button class="b d" onclick="act(\'block\',\''+c.mac+'\')">ব্লক</button></div></div>').join(''):'<div class="s">কেউ সংযুক্ত নেই</div>';
+  $('bl').innerHTML=j.blocked.length?j.blocked.map(c=>'<div class="row"><div>'+esc(c.name||'নামহীন')+'<div class="s">'+c.mac+'</div></div><button class="b" onclick="act(\'unblock\',\''+c.mac+'\')">আনব্লক</button></div>').join(''):'<div class="s">কেউ ব্লক নেই</div>';
+}
+async function act(a,m){await api('/api/'+a,{mac:m});loadClients()}
+async function nick(m,old){const n=prompt('এই ডিভাইসের নাম (খালি = মুছুন)',old||'');if(n===null)return;await api('/api/nick',{mac:m,name:n});loadClients();poll(true)}
+async function lanScan(){const j=await api('/api/lan/scan',{});if(j&&j.ok){$('ln').innerHTML='<div class="s">স্ক্যান চলছে (প্রায় ২০ সেকেন্ড)...</div>';setTimeout(()=>poll(false),2000)}}
+async function poll(once){
+  const j=await api('/api/lan');if(!j)return;
+  let h=j.state==1?'<div class="s">স্ক্যান চলছে... পাওয়া গেছে '+j.list.length+'টি</div>':'';
+  h+=j.list.map(c=>'<div class="row" onclick="nick(\''+c.mac+'\',\''+esc(c.name).replace(/'/g,'')+'\')"><div>'+esc(c.name||'নামহীন')+'<div class="s">'+c.mac+'</div></div><span class="s">'+c.ip+'</span></div>').join('');
+  if(!j.list.length&&j.state!=1)h='<div class="s">কিছু নেই — স্ক্যান শুরু করুন</div>';
+  $('ln').innerHTML=h;
+  if(j.state==1)setTimeout(()=>poll(false),2000);
+}
+function rndMac(){const r=()=>('0'+Math.floor(Math.random()*256).toString(16)).slice(-2);
+  const f=m=>(parseInt(r(),16)&0xfe|0x02).toString(16).padStart(2,'0')+':'+[r(),r(),r(),r(),r()].join(':');
+  $('m_sta').value=f();$('m_ap').value=f()}
+function saveMac(){if(confirm('সেভ করলে ডিভাইস রিস্টার্ট হবে। ঠিক আছে?'))api('/api/mac',{sta:$('m_sta').value.trim().toLowerCase(),ap:$('m_ap').value.trim().toLowerCase()})}
+function saveSys(){api('/api/sys',{host:$('s_host').value,dns:$('s_dns').value,tx:+$('s_tx').value||20,led_pin:+$('s_led').value,led_en:$('s_ledon').checked})}
+function saveNet(){if(!confirm('সেভ করলে ডিভাইস রিস্টার্ট হবে। ঠিক আছে?'))return;
+  api('/api/net',{sta_static:$('n_st').checked,sta_ip:$('n_ip').value.trim(),sta_mask:$('n_mask').value.trim(),sta_gw:$('n_gw').value.trim(),
+  ap_ip:$('n_aip').value.trim(),ap_mask:$('n_amask').value.trim(),dhcp_start:+$('n_ds').value,dhcp_end:+$('n_de').value,lease:+$('n_lease').value})}
+function saveAdmin(){api('/api/admin',{user:$('u_user').value,pass:$('u_pass').value})}
+async function ota(){
+  const f=$('ota').files[0];if(!f)return toast('ফাইল বাছাই করুন');
+  toast('আপলোড হচ্ছে, অপেক্ষা করুন...');
+  try{const r=await fetch('/api/ota',{method:'POST',body:f});const j=await r.json();toast(j.msg)}catch(e){toast('ত্রুটি')}
+}
+loadStatus();
+</script></body></html>

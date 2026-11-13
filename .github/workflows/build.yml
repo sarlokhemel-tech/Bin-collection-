@@ -1,0 +1,35 @@
+name: Build ESP32 Repeater
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build firmware (ESP-IDF)
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.2.2
+          target: esp32
+          path: '.'
+          command: 'idf.py build'
+      - name: Merge into one full bin
+        continue-on-error: true
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.2.2
+          target: esp32
+          path: '.'
+          command: 'idf.py merge-bin'
+      - name: Upload bins
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32-repeater-bin
+          path: |
+            build/esp32_repeater.bin
+            build/merged-binary.bin
+            build/bootloader/bootloader.bin
+            build/partition_table/partition-table.bin
+            build/ota_data_initial.bin
